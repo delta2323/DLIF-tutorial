@@ -176,7 +176,37 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="RNN-example-with-Keras">RNN example with Keras<a class="anchor-link" href="#RNN-example-with-Keras">&#182;</a></h1><p>In this example, we build the language model made of stacked LSTMs with Penn Treebank dataset. This example is based on the official example in Keras.</p>
+<h1 id="RNN-example-with-Chainer">RNN example with Chainer<a class="anchor-link" href="#RNN-example-with-Chainer">&#182;</a></h1><p>In this example, we build the language model made of stacked LSTMs with Penn Treebank dataset.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>A language model is a probabilistic model over words. It assigns a probability \(p(w)\) to a sequence of words \(w = (w_1, \ldots, w_n)\). We model the probability with a Recurrent Neural Network (RNN). Specifically, we decompose the probability as
+\[p(w) = \prod_{t=1}^{n} p(w_t|w_1, \ldots w_{t-1})\] and models the conditional probability on the right hand side with the RNN. At time \(t\), the RNN should outputs the probability distribution over words given the previous words \(w_1, \ldots w_{t-1}\). The RNN holds the information of previous words as a state, written as \(h_t\) at time \(t\). RNN simultaneously outputs the probability distribution of next word and updates the internal state. Schematically,
+\[(p(w_t), h_t) = \mathrm{RNN}(w_t, h_{t-1}). \]</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Procedures">Procedures<a class="anchor-link" href="#Procedures">&#182;</a></h2><p>This example takes the following steps:</p>
+<ol>
+<li>Import packages</li>
+<li>Prepare dataset</li>
+<li>Prepare model</li>
+<li>Setup optimizer</li>
+<li>Training</li>
+<li>Save models</li>
+</ol>
 
 </div>
 </div>
@@ -195,96 +225,21 @@ div#notebook {
 <div class="prompt input_prompt">In&nbsp;[1]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
+<div class=" highlight hl-ipython3"><pre><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
 
-<span class="kn">from</span> <span class="nn">keras.models</span> <span class="k">import</span> <span class="n">Sequential</span>
-<span class="kn">from</span> <span class="nn">keras.layers.core</span> <span class="k">import</span> <span class="n">Dense</span><span class="p">,</span> <span class="n">Activation</span><span class="p">,</span> <span class="n">Dropout</span>
-<span class="kn">from</span> <span class="nn">keras.layers.recurrent</span> <span class="k">import</span> <span class="n">LSTM</span>
-<span class="kn">from</span> <span class="nn">keras.utils.data_utils</span> <span class="k">import</span> <span class="n">get_file</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">operator</span>
-<span class="kn">import</span> <span class="nn">random</span>
-<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">import</span> <span class="nn">chainer</span>
+<span class="kn">import</span> <span class="nn">chainer.datasets</span> <span class="k">as</span> <span class="nn">D</span>
+<span class="kn">import</span> <span class="nn">chainer.functions</span> <span class="k">as</span> <span class="nn">F</span>
+<span class="kn">import</span> <span class="nn">chainer.links</span> <span class="k">as</span> <span class="nn">L</span>
+<span class="kn">import</span> <span class="nn">chainer.optimizers</span> <span class="k">as</span> <span class="nn">O</span>
+<span class="kn">from</span> <span class="nn">chainer</span> <span class="k">import</span> <span class="n">training</span>
+<span class="kn">from</span> <span class="nn">chainer.training</span> <span class="k">import</span> <span class="n">extensions</span> <span class="k">as</span> <span class="n">E</span>
 </pre></div>
 
 </div>
-</div>
-</div>
-
-<div class="output_wrapper">
-<div class="output">
-
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stderr output_text">
-<pre>Using Theano backend.
-</pre>
-</div>
-</div>
-
-</div>
-</div>
-
-</div>
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-<div class="prompt input_prompt">In&nbsp;[2]:</div>
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="kn">from</span> <span class="nn">keras</span> <span class="k">import</span> <span class="n">backend</span> <span class="k">as</span> <span class="n">K</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">K</span><span class="o">.</span><span class="n">_BACKEND</span><span class="p">)</span>
-<span class="k">if</span> <span class="n">K</span><span class="o">.</span><span class="n">image_dim_ordering</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;tf&#39;</span><span class="p">:</span>
-    <span class="n">K</span><span class="o">.</span><span class="n">set_image_dim_ordering</span><span class="p">(</span><span class="s1">&#39;th&#39;</span><span class="p">)</span>
-</pre></div>
-
-</div>
-</div>
-</div>
-
-<div class="output_wrapper">
-<div class="output">
-
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>theano
-</pre>
-</div>
-</div>
-
-</div>
-</div>
-
-</div>
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-<div class="prompt input_prompt">In&nbsp;[3]:</div>
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="c1"># set gpu mode</span>
-<span class="n">gpu</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="k">if</span> <span class="n">gpu</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
-    <span class="kn">import</span> <span class="nn">theano.sandbox.cuda</span>
-    <span class="n">theano</span><span class="o">.</span><span class="n">sandbox</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s2">&quot;gpu{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gpu</span><span class="p">))</span>
-</pre></div>
-
-</div>
-</div>
-</div>
-
-<div class="output_wrapper">
-<div class="output">
-
-
-<div class="output_area"><div class="prompt"></div>
-<div class="output_subarea output_stream output_stderr output_text">
-<pre>Using gpu device 0: GeForce GTX 1080 (CNMeM is disabled, cuDNN 5110)
-/home/delta/.pyenv/versions/anaconda3-2.5.0/lib/python3.5/site-packages/theano/sandbox/cuda/__init__.py:600: UserWarning: Your cuDNN version is more recent than the one Theano officially supports. If you see any problems, try updating Theano or downgrading cuDNN to version 5.
-  warnings.warn(warn)
-</pre>
-</div>
-</div>
-
 </div>
 </div>
 
@@ -303,8 +258,99 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>First, we download the PTB dataset.</p>
+<p>The following picture show how to create a mini batch from the raw dataset.</p>
+<figure>
+<img src="../image/chainer_rnn_minibatch.png" alt="How to create minibatch" style="width: 600px;"/>
+<center>
+<figcaption>Fig. How to create a minibatch.</figcaption>
+</center>
+</figure><p>The raw dataset is a long sequence of integers, each of which corresponds to an ID of single word. We will make a training data that is a list of pairs of the current word and the next words. We will create a mini batch from equally spaced pairs of words. This procedure corresponds to <code>(*)</code> in the following code.</p>
 
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[2]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="k">class</span> <span class="nc">ParallelSequentialIterator</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">Iterator</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataset</span> <span class="o">=</span> <span class="n">dataset</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="n">batch_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_new_epoch</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">repeat</span> <span class="o">=</span> <span class="n">repeat</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">*</span> <span class="n">length</span> <span class="o">//</span> <span class="n">batch_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">get_words</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">[(</span><span class="n">offset</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">)]</span>
+                <span class="k">for</span> <span class="n">offset</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">repeat</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">&gt;=</span> <span class="n">length</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">StopIteration</span>
+        
+        <span class="c1"># Get current words that will be fed to RNN</span>
+        <span class="n">cur_words</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_words</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># Get next words that will be the target values.</span>
+        <span class="n">next_words</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_words</span><span class="p">()</span>
+
+        <span class="n">epoch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">//</span> <span class="n">length</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_new_epoch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">&lt;</span> <span class="n">epoch</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_new_epoch</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">=</span> <span class="n">epoch</span>
+
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">cur_words</span><span class="p">,</span> <span class="n">next_words</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">epoch_detail</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset</span><span class="p">)</span>
+
+
+    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span> <span class="o">=</span> <span class="n">serializer</span><span class="p">(</span><span class="s1">&#39;iteration&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span> <span class="o">=</span> <span class="n">serializer</span><span class="p">(</span><span class="s1">&#39;epoch&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">epoch</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[3]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Load the Penn Tree Bank long word sequence dataset</span>
+<span class="c1"># train/val/test is just an array of integers</span>
+<span class="n">train</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">test</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">get_ptb_words</span><span class="p">()</span>
+<span class="n">n_vocab</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">train</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+<span class="c1"># Get iterators of datasets</span>
+<span class="n">batchsize</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">train_iter</span> <span class="o">=</span> <span class="n">ParallelSequentialIterator</span><span class="p">(</span><span class="n">train</span><span class="p">,</span> <span class="n">batchsize</span><span class="p">)</span>
+<span class="n">val_iter</span> <span class="o">=</span> <span class="n">ParallelSequentialIterator</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">test_iter</span> <span class="o">=</span> <span class="n">ParallelSequentialIterator</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="3.-Prepare-model">3. Prepare model<a class="anchor-link" href="#3.-Prepare-model">&#182;</a></h3>
 </div>
 </div>
 </div>
@@ -313,22 +359,40 @@ div#notebook {
 <div class="prompt input_prompt">In&nbsp;[4]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="n">vocab</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># word to index map</span>
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Definition of a recurrent net for language modeling</span>
+<span class="k">class</span> <span class="nc">RNNForLM</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">Chain</span><span class="p">):</span>
 
-<span class="k">def</span> <span class="nf">load_data</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
-    <span class="k">global</span> <span class="n">vocab</span>
-    <span class="n">words</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;eos&gt;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
-    <span class="n">dataset</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">),),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">word</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">word</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vocab</span><span class="p">:</span>
-            <span class="n">vocab</span><span class="p">[</span><span class="n">word</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vocab</span><span class="p">)</span>
-        <span class="n">dataset</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">vocab</span><span class="p">[</span><span class="n">word</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">dataset</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_vocab</span><span class="p">,</span> <span class="n">n_units</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RNNForLM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="n">embed</span><span class="o">=</span><span class="n">L</span><span class="o">.</span><span class="n">EmbedID</span><span class="p">(</span><span class="n">n_vocab</span><span class="p">,</span> <span class="n">n_units</span><span class="p">),</span>
+            <span class="n">l1</span><span class="o">=</span><span class="n">L</span><span class="o">.</span><span class="n">LSTM</span><span class="p">(</span><span class="n">n_units</span><span class="p">,</span> <span class="n">n_units</span><span class="p">),</span>
+            <span class="n">l2</span><span class="o">=</span><span class="n">L</span><span class="o">.</span><span class="n">LSTM</span><span class="p">(</span><span class="n">n_units</span><span class="p">,</span> <span class="n">n_units</span><span class="p">),</span>
+            <span class="n">l3</span><span class="o">=</span><span class="n">L</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">n_units</span><span class="p">,</span> <span class="n">n_vocab</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">():</span>
+            <span class="n">param</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="n">param</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">train</span> <span class="o">=</span> <span class="n">train</span>
 
+    <span class="k">def</span> <span class="nf">reset_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">l1</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">l2</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()</span>
 
-<span class="n">host</span> <span class="o">=</span> <span class="s1">&#39;https://raw.githubusercontent.com&#39;</span>
-<span class="n">train_path</span> <span class="o">=</span> <span class="n">get_file</span><span class="p">(</span><span class="s1">&#39;ptb.train.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">/tomsercu/lstm/master/data/ptb.train.txt&#39;</span> <span class="o">%</span> <span class="n">host</span><span class="p">)</span>
-<span class="n">train_data</span> <span class="o">=</span> <span class="n">load_data</span><span class="p">(</span><span class="n">train_path</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">h0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embed</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">h1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">l1</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">))</span>
+        <span class="n">h2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">l2</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">h1</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">))</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">l3</span><span class="p">(</span><span class="n">F</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">h2</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">train</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">y</span>
+    
+<span class="c1"># Prepare an RNNLM model</span>
+<span class="n">rnn</span> <span class="o">=</span> <span class="n">RNNForLM</span><span class="p">(</span><span class="n">n_vocab</span><span class="p">,</span> <span class="mi">650</span><span class="p">)</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">Classifier</span><span class="p">(</span><span class="n">rnn</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">compute_accuracy</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># we only want the perplexity</span>
+
+<span class="n">gpu</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="k">if</span> <span class="n">gpu</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">chainer</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">get_device</span><span class="p">(</span><span class="n">gpu</span><span class="p">)</span><span class="o">.</span><span class="n">use</span><span class="p">()</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to_gpu</span><span class="p">()</span>
 </pre></div>
 
 </div>
@@ -341,13 +405,7 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>We create training dataset from the raw dataset, which is a sequence of intergers. We sweep over the sequence and create a pair of input vector and target one by one. The length of the input vector equals to the BPTT length. The target of the input vector is its next word.</p>
-<figure>
-<img src="../image/keras_rnn_minibatch.png" alt="How to create training dataset" style="width: 600px;"/>
-<center>
-<figcaption>Fig. How to create a training dataset.</figcaption>
-</center>
-</figure>
+<h3 id="4.-Setup-optimizer">4. Setup optimizer<a class="anchor-link" href="#4.-Setup-optimizer">&#182;</a></h3>
 </div>
 </div>
 </div>
@@ -356,24 +414,9 @@ div#notebook {
 <div class="prompt input_prompt">In&nbsp;[5]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="n">n_vocab</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vocab</span><span class="p">)</span>
-<span class="n">maxlen</span> <span class="o">=</span> <span class="mi">40</span>
-<span class="n">step</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="k">def</span> <span class="nf">vectorization</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
-    <span class="n">sentences</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">next_chars</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">-</span> <span class="n">maxlen</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
-        <span class="n">sentences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="o">+</span> <span class="n">maxlen</span><span class="p">])</span>
-        <span class="n">next_chars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">maxlen</span><span class="p">])</span>
-    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">sentences</span><span class="p">),</span> <span class="n">maxlen</span><span class="p">,</span> <span class="n">n_vocab</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
-    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">sentences</span><span class="p">),</span> <span class="n">n_vocab</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sentence</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sentences</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sentence</span><span class="p">):</span>
-            <span class="n">X</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">char</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">next_chars</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">y</span>
-
-<span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span> <span class="o">=</span> <span class="n">vectorization</span><span class="p">(</span><span class="n">train_data</span><span class="p">)</span>
+<div class=" highlight hl-ipython3"><pre><span class="n">optimizer</span> <span class="o">=</span> <span class="n">O</span><span class="o">.</span><span class="n">SGD</span><span class="p">(</span><span class="n">lr</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">add_hook</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">GradientClipping</span><span class="p">(</span><span class="mf">5.</span><span class="p">))</span>
 </pre></div>
 
 </div>
@@ -386,7 +429,18 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h3 id="3.-Prepare-model-and-4.-Setup-optimizer">3. Prepare model and 4. Setup optimizer<a class="anchor-link" href="#3.-Prepare-model-and-4.-Setup-optimizer">&#182;</a></h3>
+<h3 id="5.-Training-and-6.-Save-models">5. Training and 6. Save models<a class="anchor-link" href="#5.-Training-and-6.-Save-models">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The most typical way of training a RNN is to unfold the RNN to regard it as a simple feed forward neural network (i.e. a computational graph without cycles) and do back propagation as usual. This procedure is known as <strong>Back Propagation Through Time</strong> (BPTT in short). But when the input sequence is long, BPTT is impossible because the whole data cannot fit into memory. In that case, we truncate the graph into short time ranges so that errors does not propagate too long in back propagation. This hurestic is known as <strong>truncated Back Propagation Through Time</strong> (truncated BPTT).</p>
+<p>To realize truncated BPTT in Chainer, we make a customized <code>Updater</code>.</p>
+
 </div>
 </div>
 </div>
@@ -395,18 +449,31 @@ div#notebook {
 <div class="prompt input_prompt">In&nbsp;[6]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="c1"># Language model made of 2-layered stacked LSTMs.</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">Sequential</span><span class="p">()</span>
+<div class=" highlight hl-ipython3"><pre><span class="k">class</span> <span class="nc">BPTTUpdater</span><span class="p">(</span><span class="n">training</span><span class="o">.</span><span class="n">StandardUpdater</span><span class="p">):</span>
 
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">LSTM</span><span class="p">(</span><span class="mi">512</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">input_shape</span><span class="o">=</span><span class="p">(</span><span class="n">maxlen</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">vocab</span><span class="p">))))</span>
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.2</span><span class="p">))</span>
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">LSTM</span><span class="p">(</span><span class="mi">512</span><span class="p">,</span> <span class="n">return_sequences</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dropout</span><span class="p">(</span><span class="mf">0.2</span><span class="p">))</span>
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Dense</span><span class="p">(</span><span class="n">n_vocab</span><span class="p">))</span>
-<span class="n">model</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Activation</span><span class="p">(</span><span class="s1">&#39;softmax&#39;</span><span class="p">))</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">train_iter</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">bprop_len</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BPTTUpdater</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="n">train_iter</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bprop_len</span> <span class="o">=</span> <span class="n">bprop_len</span>
 
-<span class="c1"># Compile the model and setup optimizer</span>
-<span class="n">model</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">loss</span><span class="o">=</span><span class="s1">&#39;categorical_crossentropy&#39;</span><span class="p">,</span> <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;rmsprop&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">update_core</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">train_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_iterator</span><span class="p">(</span><span class="s1">&#39;main&#39;</span><span class="p">)</span>
+        <span class="n">optimizer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_optimizer</span><span class="p">(</span><span class="s1">&#39;main&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bprop_len</span><span class="p">):</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="n">train_iter</span><span class="o">.</span><span class="n">__next__</span><span class="p">()</span>
+
+            <span class="c1"># self.converter concatenates the word IDs to matrices and send them to the device</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">converter</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+            <span class="c1"># Compute the loss at this time step and accumulate it</span>
+            <span class="n">loss</span> <span class="o">+=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">target</span><span class="p">(</span><span class="n">chainer</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">chainer</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">target</span><span class="o">.</span><span class="n">cleargrads</span><span class="p">()</span>  <span class="c1"># Clear the parameter gradients</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>  <span class="c1"># Backprop</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">unchain_backward</span><span class="p">()</span>  <span class="c1"># Truncate the graph</span>
+        <span class="n">optimizer</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>  <span class="c1"># Update the parameters</span>
 </pre></div>
 
 </div>
@@ -414,37 +481,89 @@ div#notebook {
 </div>
 
 </div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
-</div>
-<div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h3 id="5.-Training">5. Training<a class="anchor-link" href="#5.-Training">&#182;</a></h3>
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
-</div>
-<div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<p>We can invoke the training with <code>fit</code> method.</p>
-
-</div>
-</div>
-</div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">In&nbsp;[7]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="n">history</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">nb_epoch</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Setup trainer</span>
+<span class="n">epoch</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">bproplen</span> <span class="o">=</span> <span class="mi">35</span>
+<span class="n">updater</span> <span class="o">=</span> <span class="n">BPTTUpdater</span><span class="p">(</span><span class="n">train_iter</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">bproplen</span><span class="p">,</span> <span class="n">gpu</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">training</span><span class="o">.</span><span class="n">Trainer</span><span class="p">(</span><span class="n">updater</span><span class="p">,</span> <span class="p">(</span><span class="n">epoch</span><span class="p">,</span> <span class="s1">&#39;epoch&#39;</span><span class="p">))</span>
+</pre></div>
 
-<span class="n">train_log_perp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">history</span><span class="o">.</span><span class="n">history</span><span class="p">[</span><span class="s1">&#39;loss&#39;</span><span class="p">])</span>
-<span class="n">train_perp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">train_log_perp</span><span class="p">)</span>
+</div>
+</div>
+</div>
 
-<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">train_perp</span><span class="p">):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;iter {} train perplexity: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[8]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Append an extension for evaluation with validation dataset.</span>
+<span class="n">eval_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">eval_rnn</span> <span class="o">=</span> <span class="n">eval_model</span><span class="o">.</span><span class="n">predictor</span>
+<span class="n">eval_rnn</span><span class="o">.</span><span class="n">train</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="n">trainer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="o">.</span><span class="n">Evaluator</span><span class="p">(</span>
+    <span class="n">val_iter</span><span class="p">,</span> <span class="n">eval_model</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">gpu</span><span class="p">,</span>
+    <span class="n">eval_hook</span><span class="o">=</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">eval_rnn</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()))</span>  <span class="c1"># Reset the RNN state at the beginning of each evaluation</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[9]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Append an extension for logging</span>
+<span class="k">def</span> <span class="nf">compute_perplexity</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;perplexity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;main/loss&#39;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">&#39;validation/main/loss&#39;</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;val_perplexity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;validation/main/loss&#39;</span><span class="p">])</span>
+
+<span class="n">interval</span> <span class="o">=</span> <span class="mi">200</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="o">.</span><span class="n">LogReport</span><span class="p">(</span><span class="n">postprocess</span><span class="o">=</span><span class="n">compute_perplexity</span><span class="p">,</span>
+                           <span class="n">trigger</span><span class="o">=</span><span class="p">(</span><span class="n">interval</span><span class="p">,</span> <span class="s1">&#39;iteration&#39;</span><span class="p">)))</span>
+
+<span class="n">trainer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="o">.</span><span class="n">PrintReport</span><span class="p">(</span>
+        <span class="p">[</span><span class="s1">&#39;epoch&#39;</span><span class="p">,</span> <span class="s1">&#39;iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;perplexity&#39;</span><span class="p">,</span> <span class="s1">&#39;val_perplexity&#39;</span><span class="p">]</span>
+<span class="p">),</span> <span class="n">trigger</span><span class="o">=</span><span class="p">(</span><span class="n">interval</span><span class="p">,</span> <span class="s1">&#39;iteration&#39;</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[10]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Append an extension for saving training snapshots</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="o">.</span><span class="n">snapshot</span><span class="p">())</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">E</span><span class="o">.</span><span class="n">snapshot_object</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;model_iter_{.updater.iteration}&#39;</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[11]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span class="n">trainer</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
 </pre></div>
 
 </div>
@@ -457,66 +576,139 @@ div#notebook {
 
 <div class="output_area"><div class="prompt"></div>
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>Epoch 1/20
-92955/92955 [==============================] - 505s - loss: 6.7020   
-Epoch 2/20
-92955/92955 [==============================] - 441s - loss: 6.4815   
-Epoch 3/20
-92955/92955 [==============================] - 437s - loss: 6.3300   
-Epoch 4/20
-92955/92955 [==============================] - 441s - loss: 6.1953   
-Epoch 5/20
-92955/92955 [==============================] - 441s - loss: 6.0821   
-Epoch 6/20
-92955/92955 [==============================] - 441s - loss: 5.9747   
-Epoch 7/20
-92955/92955 [==============================] - 441s - loss: 5.8654   
-Epoch 8/20
-92955/92955 [==============================] - 443s - loss: 5.7470   
-Epoch 9/20
-92955/92955 [==============================] - 441s - loss: 5.6295   
-Epoch 10/20
-92955/92955 [==============================] - 444s - loss: 5.5223   
-Epoch 11/20
-92955/92955 [==============================] - 440s - loss: 5.4100   
-Epoch 12/20
-92955/92955 [==============================] - 442s - loss: 5.3102   
-Epoch 13/20
-92955/92955 [==============================] - 442s - loss: 5.2182   
-Epoch 14/20
-92955/92955 [==============================] - 446s - loss: 5.1145   
-Epoch 15/20
-92955/92955 [==============================] - 447s - loss: 5.0049   
-Epoch 16/20
-92955/92955 [==============================] - 447s - loss: 4.9204   
-Epoch 17/20
-92955/92955 [==============================] - 451s - loss: 4.8081   
-Epoch 18/20
-92955/92955 [==============================] - 457s - loss: 4.7028   
-Epoch 19/20
-92955/92955 [==============================] - 456s - loss: 4.6326   
-Epoch 20/20
-92955/92955 [==============================] - 455s - loss: 4.5592   
-iter 0 train perplexity: 814.0428043021722
-iter 1 train perplexity: 652.9623733104008
-iter 2 train perplexity: 561.1781821869483
-iter 3 train perplexity: 490.4542914770054
-iter 4 train perplexity: 437.95272428308533
-iter 5 train perplexity: 393.3576466789062
-iter 6 train perplexity: 352.6067245767047
-iter 7 train perplexity: 313.2531883798757
-iter 8 train perplexity: 278.51471419265715
-iter 9 train perplexity: 250.21753953368673
-iter 10 train perplexity: 223.62396238462586
-iter 11 train perplexity: 202.3893494171646
-iter 12 train perplexity: 184.5988535163333
-iter 13 train perplexity: 166.42344457137844
-iter 14 train perplexity: 149.1398814389558
-iter 15 train perplexity: 137.05149982446648
-iter 16 train perplexity: 122.49352379969619
-iter 17 train perplexity: 110.25241208563146
-iter 18 train perplexity: 102.77863160919098
-iter 19 train perplexity: 95.50575311601354
+<pre>epoch       iteration   perplexity  val_perplexity
+[J0           200         1275.53                     
+[J0           400         569.226                     
+[J0           600         348.365                     
+[J0           800         287.389                     
+[J0           1000        273.528                     
+[J0           1200        236.117                     
+[J1           1400        223.513     203.803         
+[J1           1600        207.171                     
+[J1           1800        201.297                     
+[J1           2000        195.856                     
+[J1           2200        169.499                     
+[J1           2400        165.077                     
+[J1           2600        154.577                     
+[J2           2800        152.006     151.676         
+[J2           3000        158.183                     
+[J2           3200        148.043                     
+[J2           3400        145.232                     
+[J2           3600        138.266                     
+[J2           3800        133.03                      
+[J3           4000        137.28      128.511         
+[J3           4200        128.426                     
+[J3           4400        127.414                     
+[J3           4600        128.38                      
+[J3           4800        114.173                     
+[J3           5000        118.745                     
+[J3           5200        114.053                     
+[J4           5400        119.369     116.795         
+[J4           5600        122.034                     
+[J4           5800        108.277                     
+[J4           6000        108.252                     
+[J4           6200        102.692                     
+[J4           6400        103.934                     
+[J4           6600        100.494                     
+[J5           6800        108.82      108.077         
+[J5           7000        111.913                     
+[J5           7200        100.521                     
+[J5           7400        102.826                     
+[J5           7600        100.694                     
+[J5           7800        89.7741                     
+[J6           8000        95.8793     102.764         
+[J6           8200        92.196                      
+[J6           8400        97.774                      
+[J6           8600        105.919                     
+[J6           8800        92.107                      
+[J6           9000        99.0932                     
+[J6           9200        74.1572                     
+[J7           9400        87.5862     99.1323         
+[J7           9600        89.6371                     
+[J7           9800        90.5349                     
+[J7           10000       97.2333                     
+[J7           10200       83.8474                     
+[J7           10400       85.0352                     
+[J7           10600       85.0726                     
+[J8           10800       85.4034     96.1183         
+[J8           11000       82.6689                     
+[J8           11200       79.268                      
+[J8           11400       85.7117                     
+[J8           11600       83.7904                     
+[J8           11800       79.1044                     
+[J9           12000       86.4666     94.3489         
+[J9           12200       80.5511                     
+[J9           12400       77.43                       
+[J9           12600       80.671                      
+[J9           12800       73.6851                     
+[J9           13000       82.2141                     
+[J9           13200       76.1761                     
+[J10          13400       74.4194     92.8767         
+[J10          13600       74.3483                     
+[J10          13800       71.0058                     
+[J10          14000       76.8669                     
+[J10          14200       72.4569                     
+[J10          14400       70.3291                     
+[J10          14600       70.8652                     
+[J11          14800       73.5107     91.5574         
+[J11          15000       71.4234                     
+[J11          15200       73.3345                     
+[J11          15400       69.9214                     
+[J11          15600       73.3035                     
+[J11          15800       67.3216                     
+[J12          16000       69.5453     90.3294         
+[J12          16200       74.4994                     
+[J12          16400       76.0641                     
+[J12          16600       71.3187                     
+[J12          16800       64.9221                     
+[J12          17000       73.1468                     
+[J12          17200       64.8904                     
+[J13          17400       69.5748     89.9929         
+[J13          17600       72.6436                     
+[J13          17800       66.9043                     
+[J13          18000       68.1555                     
+[J13          18200       68.2714                     
+[J13          18400       66.377                      
+[J14          18600       70.788      89.3273         
+[J14          18800       68.7204                     
+[J14          19000       64.2783                     
+[J14          19200       62.0523                     
+[J14          19400       61.3952                     
+[J14          19600       71.3738                     
+[J14          19800       60.2558                     
+[J15          20000       65.2449     88.7517         
+[J15          20200       69.2869                     
+[J15          20400       61.3076                     
+[J15          20600       63.3673                     
+[J15          20800       59.5117                     
+[J15          21000       68.1604                     
+[J15          21200       57.9225                     
+[J16          21400       60.454      88.7397         
+[J16          21600       61.0273                     
+[J16          21800       63.1136                     
+[J16          22000       62.8917                     
+[J16          22200       64.1447                     
+[J16          22400       57.7086                     
+[J17          22600       55.7899     88.7746         
+[J17          22800       59.98                       
+[J17          23000       57.0623                     
+[J17          23200       63.0145                     
+[J17          23400       61.0263                     
+[J17          23600       67.1836                     
+[J17          23800       54.0169                     
+[J18          24000       61.8009     88.2561         
+[J18          24200       62.7301                     
+[J18          24400       59.5162                     
+[J18          24600       59.1596                     
+[J18          24800       61.5432                     
+[J18          25000       62.7427                     
+[J18          25200       57.4878                     
+[J19          25400       61.1725     88.2227         
+[J19          25600       63.1666                     
+[J19          25800       59.8086                     
+[J19          26000       55.4322                     
+[J19          26200       63.1896                     
+[J19          26400       58.8463                     
 </pre>
 </div>
 </div>
@@ -530,31 +722,37 @@ iter 19 train perplexity: 95.50575311601354
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h3 id="6.-Save-models">6. Save models<a class="anchor-link" href="#6.-Save-models">&#182;</a></h3>
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
-</div>
-<div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<p>Finally, we save the architecture and weights of the model.</p>
-
+<h3 id="(optional)-Evaluation-with-validation-dataset">(optional) Evaluation with validation dataset<a class="anchor-link" href="#(optional)-Evaluation-with-validation-dataset">&#182;</a></h3>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[8]:</div>
+<div class="prompt input_prompt">In&nbsp;[12]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;language_model.json&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">o</span><span class="p">:</span>
-    <span class="n">o</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">to_json</span><span class="p">())</span>
-<span class="n">model</span><span class="o">.</span><span class="n">save_weights</span><span class="p">(</span><span class="s1">&#39;language_model.h5&#39;</span><span class="p">)</span>
+<div class=" highlight hl-ipython3"><pre><span class="c1"># Evaluate the final model with test dataset.</span>
+<span class="n">eval_rnn</span><span class="o">.</span><span class="n">reset_state</span><span class="p">()</span>
+<span class="n">evaluator</span> <span class="o">=</span> <span class="n">E</span><span class="o">.</span><span class="n">Evaluator</span><span class="p">(</span><span class="n">test_iter</span><span class="p">,</span> <span class="n">eval_model</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">gpu</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">evaluator</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;test perplexity:&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;main/loss&#39;</span><span class="p">])))</span>
 </pre></div>
 
 </div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>test perplexity: 85.4273086004
+</pre>
+</div>
+</div>
+
 </div>
 </div>
 
